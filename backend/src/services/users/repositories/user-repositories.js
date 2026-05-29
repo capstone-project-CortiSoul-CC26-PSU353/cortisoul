@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcrypt';
-import pool from '../../../databases/index.js';
+import pool from '../../../config/database.js';
 
 class UserRepositories {
   constructor() {
@@ -49,7 +49,7 @@ class UserRepositories {
     };
 
     const user = await this._pool.query(query);
-    if (!user) {
+    if (!user.rows.length) {
       return null;
     }
 

@@ -1,36 +1,126 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { journalsApi } from "@/lib/api";
 
-const MOOD_OPTIONS = [
-  { value: "happy", label: "Bahagia", emoji: "😊", color: "#22c55e" },
-  { value: "calm", label: "Tenang", emoji: "😌", color: "#14b8a6" },
-  { value: "neutral", label: "Biasa Saja", emoji: "😐", color: "#64748b" },
-  { value: "anxious", label: "Cemas", emoji: "😰", color: "#f97316" },
-  { value: "sad", label: "Sedih", emoji: "😢", color: "#3b82f6" },
-  { value: "stressed", label: "Stres", emoji: "😤", color: "#ef4444" },
-];
+// ─── Voice-to-Text Hook ────────────────────────────────────────────────────────
+
+type VoiceStatus = "idle" | "listening" | "unsupported";
+
+function useVoiceToText(onResult: (text: string) => void) {
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
+  const onResultRef = useRef(onResult);
+
+  // Selalu perbarui ref dengan callback terbaru dari parent component
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognitionAPI: any =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionAPI) {
+      setVoiceStatus("unsupported");
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = "id-ID";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
+      let newText = "";
+      // Mulai meloop HANYA dari indeks hasil baru yang belum di-proses (event.resultIndex)
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          newText += event.results[i][0].transcript;
+        }
+      }
+      if (newText) {
+        onResultRef.current(newText);
+      }
+    };
+
+    recognition.onend = () => {
+      setVoiceStatus("idle");
+    };
+
+    recognition.onerror = () => {
+      setVoiceStatus("idle");
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.abort();
+    };
+  }, []); // Hanya jalankan sekali saat mount agar recognition tidak terputus-putus
+
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current || voiceStatus === "unsupported") return;
+    try {
+      recognitionRef.current.start();
+      setVoiceStatus("listening");
+    } catch (err) {
+      console.error("Gagal memulai perekaman suara:", err);
+    }
+  }, [voiceStatus]);
+
+  const stopListening = useCallback(() => {
+    if (!recognitionRef.current) return;
+    try {
+      recognitionRef.current.stop();
+      setVoiceStatus("idle");
+    } catch (err) {
+      console.error("Gagal menghentikan perekaman suara:", err);
+    }
+  }, []);
+
+  const toggle = useCallback(() => {
+    if (voiceStatus === "listening") stopListening();
+    else startListening();
+  }, [voiceStatus, startListening, stopListening]);
+
+  return { voiceStatus, toggle, stopListening };
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function NewJournalPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"mood" | "write">("mood");
-  const [selectedMood, setSelectedMood] = useState<string>("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleMoodNext = () => {
-    if (!selectedMood) return;
-    setStep("write");
-    // Pre-fill content with mood context
-    const moodLabel = MOOD_OPTIONS.find((m) => m.value === selectedMood)?.label || "";
-    if (!content) {
-      setContent(`Hari ini aku merasa ${moodLabel.toLowerCase()}. `);
+  // Voice-to-text: append transcript ke content yang sudah ada
+  const handleVoiceResult = useCallback((transcript: string) => {
+    setContent((prev) => {
+      const separator = prev && !prev.endsWith(" ") ? " " : "";
+      return prev + separator + transcript;
+    });
+  }, []);
+
+  const { voiceStatus, toggle: toggleVoice } = useVoiceToText(handleVoiceResult);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.max(textareaRef.current.scrollHeight, 180)}px`;
     }
-  };
+  }, [content]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,292 +146,268 @@ export default function NewJournalPage() {
   };
 
   const todayDate = new Date().toLocaleDateString("id-ID", {
-    weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-  });
+  }).toUpperCase();
+
+  const isListening = voiceStatus === "listening";
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: "680px" }} className="animate-fadeIn">
-      {/* Header */}
-      <div style={{ marginBottom: "28px" }}>
-        <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginBottom: "4px" }}>
+    <div className="app-page app-page--narrow animate-fadeIn" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {/* Header – centered */}
+      <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        <p
+          style={{
+            fontSize: "13px",
+            color: "var(--text-secondary)",
+            letterSpacing: "0.04em",
+            marginBottom: "10px",
+            fontWeight: 500,
+          }}
+        >
           {todayDate}
         </p>
-        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "4px" }}>
-          {step === "mood" ? "Bagaimana harimu? 🌤️" : "Tulis Jurnal ✍️"}
+        <h1
+          style={{
+            fontSize: "clamp(28px, 5vw, 40px)",
+            fontWeight: 700,
+            color: "var(--text-primary)",
+            margin: 0,
+            lineHeight: 1.2,
+          }}
+        >
+          Bagaimana harimu?
         </h1>
-        <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
-          {step === "mood"
-            ? "Pilih mood yang paling mencerminkan perasaanmu sekarang"
-            : "Ceritakan apa yang kamu rasakan dan alami hari ini"}
-        </p>
       </div>
 
-      {/* Step Indicator */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "28px" }}>
-        {["mood", "write"].map((s, i) => (
-          <React.Fragment key={s}>
-            <div
+      {/* Card */}
+      <form
+        onSubmit={handleSubmit}
+        className="journal-form-card"
+      >
+        {/* Title input */}
+        <input
+          type="text"
+          id="journal-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Masukkan judul jurnal mu"
+          maxLength={80}
+          required
+          style={{
+            width: "100%",
+            border: "none",
+            background: "transparent",
+            outline: "none",
+            fontSize: "18px",
+            fontWeight: 600,
+            color: "var(--text-primary)",
+            padding: "0 0 12px 0",
+            borderBottom: "none",
+            marginBottom: "16px",
+            borderRadius: 0,
+            boxShadow: "none",
+          }}
+        />
+
+        {/* Content textarea */}
+        <textarea
+          ref={textareaRef}
+          id="journal-content"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={
+            isListening
+              ? "🎙️ Sedang mendengarkan... Bicara sekarang..."
+              : "Masukkan detail keseharian mu disini!"
+          }
+          required
+          style={{
+            width: "100%",
+            border: "none",
+            background: "transparent",
+            outline: "none",
+            fontSize: "14.5px",
+            color: "var(--text-primary)",
+            resize: "none",
+            minHeight: "180px",
+            lineHeight: "1.75",
+            padding: "0",
+            marginBottom: "24px",
+            boxShadow: "none",
+            borderRadius: 0,
+            borderColor: isListening ? "#ef4444" : "transparent",
+            transition: "border-color 0.2s",
+          }}
+        />
+
+        {/* Error */}
+        {error && (
+          <div
+            className="animate-fadeIn"
+            style={{
+              background: "rgba(220, 38, 38, 0.1)",
+              border: "1px solid rgba(220, 38, 38, 0.25)",
+              borderRadius: "10px",
+              padding: "10px 14px",
+              color: "#dc2626",
+              fontSize: "13px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            {error}
+          </div>
+        )}
+
+        {/* Divider Line */}
+        <div
+          style={{
+            height: "1px",
+            background: "var(--border-light)",
+            width: "100%",
+            marginBottom: "20px",
+          }}
+        />
+
+        {/* Bottom action row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            flexWrap: "wrap",
+            width: "100%",
+          }}
+        >
+          {/* Voice Journaling button */}
+          {voiceStatus !== "unsupported" ? (
+            <button
+              type="button"
+              onClick={toggleVoice}
+              title={isListening ? "Hentikan perekaman suara" : "Mulai rekam suara (Bahasa Indonesia)"}
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "50%",
-                background:
-                  step === s
-                    ? "var(--accent-blue)"
-                    : i === 0 && step === "write"
-                    ? "var(--accent-green)"
-                    : "var(--border-light)",
-                color:
-                  step === s || (i === 0 && step === "write") ? "#fff" : "var(--text-muted)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: "13px",
-                fontWeight: 600,
+                gap: "8px",
+                padding: "10px 20px",
+                background: isListening
+                  ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
+                  : "var(--bg-primary)",
+                border: isListening
+                  ? "1.5px solid #dc2626"
+                  : "1.5px solid var(--border-medium)",
+                borderRadius: "99px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: isListening ? "#fff" : "var(--text-primary)",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                boxShadow: isListening
+                  ? "0 0 0 3px rgba(239,68,68,0.2)"
+                  : "var(--shadow-sm)",
                 flexShrink: 0,
               }}
             >
-              {i === 0 && step === "write" ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
+              {isListening ? (
+                // Stop / recording icon
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
                 </svg>
               ) : (
-                i + 1
+                // Mic icon
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
               )}
-            </div>
-            <span
-              style={{
-                fontSize: "13px",
-                color: step === s ? "var(--text-primary)" : "var(--text-muted)",
-                fontWeight: step === s ? 600 : 400,
-                marginRight: i === 0 ? "0" : "0",
-              }}
-            >
-              {s === "mood" ? "Pilih Mood" : "Tulis Jurnal"}
-            </span>
-            {i === 0 && (
-              <div
-                style={{
-                  flex: 1,
-                  height: "2px",
-                  background: step === "write" ? "var(--accent-blue)" : "var(--border-light)",
-                  borderRadius: "99px",
-                }}
-              />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* Step: Mood Selection */}
-      {step === "mood" && (
-        <div className="animate-fadeIn">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "12px",
-              marginBottom: "28px",
-            }}
-          >
-            {MOOD_OPTIONS.map((mood) => (
-              <button
-                key={mood.value}
-                onClick={() => setSelectedMood(mood.value)}
-                style={{
-                  padding: "18px 12px",
-                  borderRadius: "14px",
-                  border: `2px solid ${selectedMood === mood.value ? mood.color : "var(--border-light)"}`,
-                  background:
-                    selectedMood === mood.value
-                      ? `${mood.color}15`
-                      : "#fff",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "8px",
-                  boxShadow: selectedMood === mood.value ? `0 0 0 3px ${mood.color}20` : "none",
-                  transform: selectedMood === mood.value ? "scale(1.03)" : "scale(1)",
-                }}
-              >
-                <span style={{ fontSize: "32px", lineHeight: 1 }}>{mood.emoji}</span>
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: selectedMood === mood.value ? 600 : 400,
-                    color: selectedMood === mood.value ? mood.color : "var(--text-secondary)",
-                  }}
-                >
-                  {mood.label}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={handleMoodNext}
-            disabled={!selectedMood}
-            style={{
-              width: "100%",
-              padding: "13px",
-              background: selectedMood
-                ? "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)"
-                : "#e2e8f0",
-              color: selectedMood ? "#fff" : "var(--text-muted)",
-              border: "none",
-              borderRadius: "12px",
-              fontWeight: 600,
-              fontSize: "15px",
-              cursor: selectedMood ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            Lanjut Menulis
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {/* Step: Write Journal */}
-      {step === "write" && (
-        <div className="animate-fadeIn">
-          {/* Selected mood display */}
-          {selectedMood && (
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                background: "#fff",
-                border: "1px solid var(--border-light)",
-                borderRadius: "10px",
-                padding: "8px 14px",
-                marginBottom: "20px",
-              }}
-            >
-              <span style={{ fontSize: "20px" }}>
-                {MOOD_OPTIONS.find((m) => m.value === selectedMood)?.emoji}
-              </span>
-              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
-                Mood: <strong style={{ color: "var(--text-primary)" }}>
-                  {MOOD_OPTIONS.find((m) => m.value === selectedMood)?.label}
-                </strong>
-              </span>
-              <button
-                onClick={() => setStep("mood")}
-                style={{ background: "none", border: "none", color: "var(--accent-blue)", fontSize: "12px", cursor: "pointer", padding: "0 4px" }}
-              >
-                Ubah
-              </button>
-            </div>
+              {isListening ? "Hentikan" : "Voice Journaling"}
+            </button>
+          ) : (
+            <div />
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                Judul Jurnal <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Beri judul yang mencerminkan harimu..."
-                maxLength={50}
-                required
-              />
-              <div style={{ textAlign: "right", fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>
-                {title.length}/50
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                Ceritakan harimu <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Tulis apa yang kamu rasakan, alami, atau pikirkan hari ini..."
-                rows={10}
-                required
-                style={{ resize: "vertical", minHeight: "200px", lineHeight: "1.7" }}
-              />
-            </div>
-
-            {error && (
-              <div
-                style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  borderRadius: "8px",
-                  padding: "10px 12px",
-                  color: "#dc2626",
-                  fontSize: "13px",
-                }}
-              >
-                {error}
-              </div>
+          {/* Save Entry button */}
+          <button
+            type="submit"
+            id="submit-journal"
+            disabled={isSubmitting}
+            style={{
+              padding: "10px 24px",
+              background: isSubmitting
+                ? "rgba(61, 90, 90, 0.5)"
+                : "linear-gradient(135deg, #3d5a5a 0%, #2b3f3f 100%)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "99px",
+              fontWeight: 600,
+              fontSize: "14px",
+              cursor: isSubmitting ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              boxShadow: isSubmitting ? "none" : "0 4px 14px rgba(61, 90, 90, 0.35)",
+              transition: "all 0.2s ease",
+              flexShrink: 0,
+            }}
+          >
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Menyimpan...
+              </>
+            ) : (
+              "Simpan dan Analisis"
             )}
-
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                type="button"
-                onClick={() => setStep("mood")}
-                style={{
-                  padding: "12px 20px",
-                  background: "#fff",
-                  border: "1.5px solid var(--border-medium)",
-                  borderRadius: "12px",
-                  fontWeight: 500,
-                  fontSize: "14px",
-                  color: "var(--text-secondary)",
-                  cursor: "pointer",
-                }}
-              >
-                ← Kembali
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  background: isSubmitting
-                    ? "#94a3b8"
-                    : "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "12px",
-                  fontWeight: 600,
-                  fontSize: "15px",
-                  cursor: isSubmitting ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                }}
-              >
-                {isSubmitting && (
-                  <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                )}
-                {isSubmitting ? "Menyimpan..." : "Simpan & Analisis 🔍"}
-              </button>
-            </div>
-          </form>
+          </button>
         </div>
-      )}
+
+        {/* Listening badge */}
+        {isListening && (
+          <div
+            className="animate-fadeIn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "7px",
+              marginTop: "12px",
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: "99px",
+              padding: "5px 14px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#dc2626",
+              alignSelf: "flex-start",
+            }}
+          >
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                background: "#ef4444",
+                borderRadius: "50%",
+                display: "inline-block",
+                animation: "pulse-soft 1s ease-in-out infinite",
+              }}
+            />
+            Mendengarkan... Bicara sekarang
+          </div>
+        )}
+      </form>
     </div>
   );
 }

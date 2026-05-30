@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { journalsApi, type Journal } from "@/lib/api";
+import { journalsApi, predictApi, getReflectionText, type Journal } from "@/lib/api";
 
 export default function JournalDetailPage() {
   const params = useParams();
@@ -19,6 +19,9 @@ export default function JournalDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [reflectionText, setReflectionText] = useState<string | null>(null);
+  const [isLoadingReflection, setIsLoadingReflection] = useState(false);
+  const [reflectionError, setReflectionError] = useState("");
 
   const loadJournal = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +69,35 @@ export default function JournalDetailPage() {
     }
   };
 
+  const handleShowReflection = async () => {
+    if (!journal?.content.trim()) {
+      setReflectionError("Isi jurnal kosong, tidak bisa dibuat refleksi");
+      return;
+    }
+    setIsLoadingReflection(true);
+    setReflectionError("");
+    try {
+      const res = await predictApi.predict(journal.content);
+      const prediction = res.data?.prediction;
+      if (!prediction) {
+        setReflectionError("Tidak ada hasil dari layanan AI");
+        return;
+      }
+      const text = getReflectionText(prediction);
+      if (!text) {
+        setReflectionError("Teks refleksi tidak tersedia dalam respons AI");
+        return;
+      }
+      setReflectionText(text);
+    } catch (err: unknown) {
+      setReflectionError(
+        err instanceof Error ? err.message : "Gagal memuat teks refleksi"
+      );
+    } finally {
+      setIsLoadingReflection(false);
+    }
+  };
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
@@ -80,12 +112,13 @@ export default function JournalDetailPage() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: "32px" }}>
+      <div className="app-page">
         <div
           style={{
             height: "400px",
-            background: "#fff",
+            background: "var(--bg-card)",
             borderRadius: "16px",
+            border: "1px solid var(--border-light)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -102,7 +135,7 @@ export default function JournalDetailPage() {
 
   if (error && !journal) {
     return (
-      <div style={{ padding: "32px" }}>
+      <div className="app-page">
         <div style={{ textAlign: "center", padding: "60px 0" }}>
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>❌</div>
           <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "8px" }}>
@@ -134,14 +167,14 @@ export default function JournalDetailPage() {
   const stressLabel = getStressLabel(journal.stress_score);
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: "780px" }} className="animate-fadeIn">
+    <div className="app-page animate-fadeIn">
       {/* Breadcrumb */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
-        <Link href="/history" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "13px" }}>
+      <div className="breadcrumb-nav" style={{ marginBottom: "20px" }}>
+        <Link href="/history" style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "13px", flexShrink: 0 }}>
           Riwayat Jurnal
         </Link>
-        <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>›</span>
-        <span style={{ color: "var(--text-primary)", fontSize: "13px", fontWeight: 500 }}>
+        <span style={{ color: "var(--text-muted)", fontSize: "13px", flexShrink: 0 }}>›</span>
+        <span className="breadcrumb-nav__title" style={{ color: "var(--text-primary)", fontSize: "13px", fontWeight: 500 }}>
           {journal.title}
         </span>
       </div>
@@ -149,30 +182,28 @@ export default function JournalDetailPage() {
       {/* Journal Card */}
       <div
         style={{
-          background: "#fff",
-          borderRadius: "20px",
-          border: "1px solid var(--border-light)",
-          boxShadow: "var(--shadow-md)",
+          background: "var(--bg-card)",
+          borderRadius: "16px",
+          boxShadow: "0 4px 24px rgba(61, 90, 90, 0.08)",
           overflow: "hidden",
           marginBottom: "20px",
         }}
       >
         {/* Header */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 100%)",
+        <div className="journal-card-header" style={{
+            background: "linear-gradient(135deg, rgba(61,90,90,0.08) 0%, rgba(129,140,248,0.06) 100%)",
             borderBottom: "1px solid var(--border-light)",
             padding: "24px 28px",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+          <div className="journal-detail-header">
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                 {journal.emotion && (
                   <span
                     style={{
-                      background: "rgba(14,165,233,0.1)",
-                      color: "var(--accent-blue)",
+                      background: "rgba(20,184,166,0.12)",
+                      color: "var(--teal-badge)",
                       padding: "3px 10px",
                       borderRadius: "99px",
                       fontSize: "12px",
@@ -180,7 +211,7 @@ export default function JournalDetailPage() {
                       textTransform: "capitalize",
                     }}
                   >
-                    {emotionEmoji(journal.emotion)} {journal.emotion}
+                    {journal.emotion.charAt(0).toUpperCase() + journal.emotion.slice(1)}
                   </span>
                 )}
                 {journal.stress_score !== undefined && journal.stress_score !== null && (
@@ -194,7 +225,7 @@ export default function JournalDetailPage() {
                       fontWeight: 600,
                     }}
                   >
-                    Stres: {journal.stress_score}/10
+                    Stres {stressLabel}
                   </span>
                 )}
               </div>
@@ -208,11 +239,11 @@ export default function JournalDetailPage() {
                   style={{
                     fontSize: "20px",
                     fontWeight: 700,
-                    border: "2px solid var(--accent-blue)",
+                    border: "2px solid var(--accent-teal)",
                     borderRadius: "8px",
                     padding: "6px 10px",
                     width: "100%",
-                    background: "#fff",
+                    background: "var(--bg-card-hover)",
                   }}
                 />
               ) : (
@@ -228,12 +259,12 @@ export default function JournalDetailPage() {
 
             {/* Action buttons */}
             {!isEditing && (
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div className="journal-detail-actions">
                 <button
                   onClick={() => setIsEditing(true)}
                   style={{
                     padding: "8px 14px",
-                    background: "#fff",
+                    background: "var(--bg-card-hover)",
                     border: "1.5px solid var(--border-medium)",
                     borderRadius: "10px",
                     fontSize: "13px",
@@ -255,12 +286,12 @@ export default function JournalDetailPage() {
                   onClick={() => setShowDeleteConfirm(true)}
                   style={{
                     padding: "8px 14px",
-                    background: "#fef2f2",
-                    border: "1.5px solid #fecaca",
+                    background: "rgba(220,38,38,0.1)",
+                    border: "1.5px solid rgba(220,38,38,0.25)",
                     borderRadius: "10px",
                     fontSize: "13px",
                     fontWeight: 500,
-                    color: "#dc2626",
+                    color: "#f87171",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -279,7 +310,7 @@ export default function JournalDetailPage() {
         </div>
 
         {/* Content */}
-        <div style={{ padding: "24px 28px" }}>
+        <div className="journal-card-body" style={{ padding: "24px 28px" }}>
           {isEditing ? (
             <textarea
               value={editContent}
@@ -287,7 +318,7 @@ export default function JournalDetailPage() {
               rows={12}
               style={{
                 width: "100%",
-                border: "2px solid var(--accent-blue)",
+                border: "2px solid var(--accent-teal)",
                 borderRadius: "10px",
                 resize: "vertical",
                 fontSize: "15px",
@@ -312,7 +343,7 @@ export default function JournalDetailPage() {
 
           {/* Edit actions */}
           {isEditing && (
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <div className="edit-actions-row">
               {error && (
                 <p style={{ color: "#dc2626", fontSize: "13px", flex: 1 }}>{error}</p>
               )}
@@ -320,7 +351,7 @@ export default function JournalDetailPage() {
                 onClick={() => { setIsEditing(false); setError(""); }}
                 style={{
                   padding: "10px 18px",
-                  background: "#fff",
+                  background: "var(--bg-card-hover)",
                   border: "1.5px solid var(--border-medium)",
                   borderRadius: "10px",
                   fontSize: "14px",
@@ -336,7 +367,7 @@ export default function JournalDetailPage() {
                 disabled={isSaving}
                 style={{
                   padding: "10px 20px",
-                  background: "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)",
+                  background: "linear-gradient(135deg, #3d5a5a 0%, #2b3f3f 100%)",
                   border: "none",
                   borderRadius: "10px",
                   fontSize: "14px",
@@ -346,6 +377,7 @@ export default function JournalDetailPage() {
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
+                  boxShadow: isSaving ? "none" : "0 4px 12px rgba(61,90,90,0.3)",
                 }}
               >
                 {isSaving && (
@@ -360,14 +392,15 @@ export default function JournalDetailPage() {
         </div>
       </div>
 
+      
+
       {/* AI Analysis Panel */}
       {(journal.emotion || journal.stress_score !== undefined || journal.suggestion) && (
         <div
           style={{
-            background: "#fff",
-            borderRadius: "20px",
-            border: "1px solid var(--border-light)",
-            boxShadow: "var(--shadow-sm)",
+            background: "var(--bg-card)",
+            borderRadius: "16px",
+            boxShadow: "0 4px 24px rgba(61, 90, 90, 0.08)",
             overflow: "hidden",
           }}
         >
@@ -380,22 +413,6 @@ export default function JournalDetailPage() {
               gap: "10px",
             }}
           >
-            <div
-              style={{
-                width: "32px",
-                height: "32px",
-                background: "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)",
-                borderRadius: "8px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
-            </div>
             <div>
               <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
                 Hasil Analisis AI
@@ -410,25 +427,10 @@ export default function JournalDetailPage() {
             {/* Emotion */}
             {journal.emotion && (
               <div style={{ display: "flex", gap: "16px" }}>
-                <div
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    background: "var(--accent-blue-light)",
-                    borderRadius: "10px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    fontSize: "20px",
-                  }}
-                >
-                  {emotionEmoji(journal.emotion)}
-                </div>
                 <div>
                   <p style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>Emosi Terdeteksi</p>
                   <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)", textTransform: "capitalize" }}>
-                    {journal.emotion}
+                    {journal.emotion.charAt(0).toUpperCase() + journal.emotion.slice(1)}
                   </p>
                 </div>
               </div>
@@ -441,7 +443,7 @@ export default function JournalDetailPage() {
                   <p style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Tingkat Stres</p>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <span style={{ fontSize: "15px", fontWeight: 700, color: stressColor }}>
-                      {journal.stress_score}
+                      {journal.stress_score!}
                     </span>
                     <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>/10</span>
                     <span
@@ -458,11 +460,11 @@ export default function JournalDetailPage() {
                     </span>
                   </div>
                 </div>
-                <div style={{ height: "8px", background: "var(--bg-primary)", borderRadius: "99px" }}>
+                <div style={{ height: "8px", background: "rgba(255,255,255,0.06)", borderRadius: "99px" }}>
                   <div
                     style={{
                       height: "100%",
-                      width: `${(journal.stress_score / 10) * 100}%`,
+                      width: `${journal.stress_score!*10}%`,
                       background: `linear-gradient(90deg, #22c55e, ${stressColor})`,
                       borderRadius: "99px",
                     }}
@@ -475,16 +477,28 @@ export default function JournalDetailPage() {
             {journal.suggestion && (
               <div
                 style={{
-                  background: "linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 100%)",
+                  background: "linear-gradient(135deg, rgba(61,90,90,0.08) 0%, rgba(129,140,248,0.06) 100%)",
                   borderRadius: "12px",
                   padding: "16px",
-                  border: "1px solid var(--border-light)",
+                  border: "1px solid var(--border-teal)",
                 }}
               >
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <div style={{ fontSize: "20px", flexShrink: 0 }}>💡</div>
+                  <div style={{
+                    width: "32px", height: "32px",
+                    background: "rgba(61,90,90,0.15)",
+                    borderRadius: "8px",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                  </div>
                   <div>
-                    <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent-blue)", marginBottom: "6px" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent-teal)", marginBottom: "6px" }}>
                       Saran untuk Kamu
                     </p>
                     <p style={{ fontSize: "13.5px", color: "var(--text-primary)", lineHeight: "1.7" }}>
@@ -498,13 +512,120 @@ export default function JournalDetailPage() {
         </div>
       )}
 
+      {/* Teks Refleksi AI */}
+      {!isEditing && (
+        <div style={{ marginTop: "20px" }}>
+          <button
+            type="button"
+            onClick={handleShowReflection}
+            disabled={isLoadingReflection}
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                marginTop:10,
+                flexShrink: 0,
+                background: "#3d5a5a",
+                color: "#ffffff",
+                padding: "12px 24px",
+                borderRadius: "9999px",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textDecoration: "none",
+                textTransform: "uppercase",
+                boxShadow: "0 4px 12px rgba(61, 90, 90, 0.28)",
+                whiteSpace: "nowrap",
+              }}
+          >
+            {isLoadingReflection ? (
+              <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            )}
+            {isLoadingReflection ? "Memuat Refleksi..." : "Tampilkan Teks Refleksi"}
+          </button>
+
+          {reflectionError && (
+            <p style={{ color: "#dc2626", fontSize: "13px", marginTop: "10px" }}>
+              {reflectionError}
+            </p>
+          )}
+
+          {reflectionText && (
+            <div
+              style={{
+                marginTop: "16px",
+                background: "var(--bg-card)",
+                borderRadius: "16px",
+                boxShadow: "0 4px 24px rgba(61, 90, 90, 0.08)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "18px 24px",
+                  borderBottom: "1px solid var(--border-light)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  background: "linear-gradient(135deg, rgba(61,90,90,0.08) 0%, rgba(129,140,248,0.06) 100%)",
+                }}
+              >
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    background: "linear-gradient(135deg, #3d5a5a 0%, #2b3f3f 100%)",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
+                    Teks Refleksi
+                  </h2>
+                  <p style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                    Dihasilkan oleh Cortisoul AI dari isi jurnalmu
+                  </p>
+                </div>
+              </div>
+              <div style={{ padding: "20px 24px" }}>
+                <p
+                  style={{
+                    fontSize: "14.5px",
+                    color: "var(--text-primary)",
+                    lineHeight: "1.8",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {reflectionText}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Delete Confirm Modal */}
       {showDeleteConfirm && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.4)",
+            background: "rgba(0,0,0,0.6)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -517,12 +638,13 @@ export default function JournalDetailPage() {
             onClick={(e) => e.stopPropagation()}
             className="animate-fadeIn"
             style={{
-              background: "#fff",
+              background: "var(--bg-card)",
               borderRadius: "20px",
               padding: "32px",
               maxWidth: "380px",
               width: "100%",
               textAlign: "center",
+              border: "1px solid var(--border-light)",
             }}
           >
             <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗑️</div>
@@ -538,7 +660,7 @@ export default function JournalDetailPage() {
                 style={{
                   flex: 1,
                   padding: "11px",
-                  background: "#fff",
+                  background: "var(--bg-card-hover)",
                   border: "1.5px solid var(--border-medium)",
                   borderRadius: "10px",
                   fontSize: "14px",
@@ -577,33 +699,18 @@ export default function JournalDetailPage() {
     </div>
   );
 }
-
-function emotionEmoji(emotion: string) {
-  const map: Record<string, string> = {
-    happy: "😊",
-    sad: "😢",
-    anxious: "😰",
-    angry: "😠",
-    calm: "😌",
-    stressed: "😤",
-    excited: "🤩",
-    neutral: "😐",
-    fear: "😨",
-    love: "🥰",
-  };
-  return map[emotion?.toLowerCase()] || "💭";
-}
-
 function getStressColor(score?: number | null): string {
   if (score === null || score === undefined) return "#64748b";
-  if (score <= 3) return "#22c55e";
-  if (score <= 6) return "#f97316";
+  // Skala raw 0–1 dari ML model
+  if (score < 4) return "#22c55e";
+  if (score < 7) return "#f97316";
   return "#ef4444";
 }
 
 function getStressLabel(score?: number | null): string {
   if (score === null || score === undefined) return "-";
-  if (score <= 3) return "Rendah";
-  if (score <= 6) return "Sedang";
+  if (score < 4) return "Rendah";
+  if (score < 7) return "Sedang";
   return "Tinggi";
 }
+

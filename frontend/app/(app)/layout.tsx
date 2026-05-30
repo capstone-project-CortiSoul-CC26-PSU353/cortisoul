@@ -3,8 +3,7 @@
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { SidebarDesktop, MobileTopBar, MobileBottomNav } from "@/components/Sidebar";
-import NotificationSetup from "@/components/NotificationSetup";
+import Sidebar from "@/components/Sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,8 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div
         style={{
-          minHeight: "100dvh",
-          height: "100dvh",
+          height: "100vh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -36,16 +34,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             gap: "14px",
           }}
         >
-          <img
-            src="/cortisoul-logo.png"
-            alt="CortiSoul Logo"
+          <div
             style={{
-              width: "48px",
-              height: "48px",
-              objectFit: "contain",
+              width: "42px",
+              height: "42px",
+              background: "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
             className="animate-pulse-soft"
-          />
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          </div>
           <span
             style={{
               color: "var(--text-secondary)",
@@ -62,40 +75,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        width: "100%",
-        minHeight: "100dvh",
-        height: "100dvh",
-        overflow: "hidden",
-      }}
-    >
-      <SidebarDesktop />
-      <div
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <Sidebar />
+      <main
         style={{
           flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          minHeight: "100%",
+          overflowY: "auto",
+          background: "var(--bg-primary)",
         }}
       >
-        <MobileTopBar />
-        <NotificationSetup />
-        <main
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: "auto",
-            background: "var(--bg-primary)",
-          }}
-        >
-          {children}
-        </main>
-      </div>
-      <MobileBottomNav />
+        {children}
+      </main>
     </div>
   );
 }

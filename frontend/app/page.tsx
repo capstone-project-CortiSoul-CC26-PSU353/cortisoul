@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { useTheme } from "@/lib/theme-context";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -13,58 +12,8 @@ export default function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, register } = useAuth();
   const router = useRouter();
-  const { isDark, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  if (authLoading || isAuthenticated) {
-    return (
-      <div
-        style={{
-          minHeight: "100dvh",
-          height: "100dvh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--bg-primary)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "14px",
-          }}
-        >
-          <img
-            src="/cortisoul-logo.png"
-            alt="CortiSoul Logo"
-            style={{
-              width: "48px",
-              height: "48px",
-              objectFit: "contain",
-            }}
-            className="animate-pulse-soft"
-          />
-          <span
-            style={{
-              color: "var(--text-secondary)",
-              fontSize: "14px",
-            }}
-          >
-            Memuat...
-          </span>
-        </div>
-      </div>
-    );
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,9 +28,11 @@ export default function AuthPage() {
     try {
       if (mode === "register") {
         await register(username, password, fullname);
-        // Auto-login setelah pendaftaran berhasil untuk UX yang seamless
-        await login(username, password);
-        router.push("/history?registered=success");
+        setMode("login");
+        setError("");
+        setFullname("");
+        setPassword("");
+        setConfirmPassword("");
       } else {
         await login(username, password);
         router.push("/dashboard");
@@ -96,77 +47,34 @@ export default function AuthPage() {
   return (
     <div
       style={{
-        minHeight: "100dvh",
+        minHeight: "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--bg-primary)",
-        padding: "16px",
-        position: "relative",
+        background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 40%, #f5f3ff 100%)",
+        padding: "20px",
       }}
     >
-      {/* Floating theme toggle — top right */}
-      <button
-        onClick={toggleTheme}
-        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        title={isDark ? "Mode Terang" : "Mode Gelap"}
-        style={{
-          position: "fixed",
-          top: "16px",
-          right: "16px",
-          width: "40px",
-          height: "40px",
-          borderRadius: "50%",
-          border: "1px solid var(--border-medium)",
-          background: "var(--bg-card)",
-          color: "var(--text-secondary)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          zIndex: 100,
-          boxShadow: "var(--shadow-md)",
-          transition: "all 0.2s ease",
-        }}
-      >
-        {isDark ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        )}
-      </button>
-      {/* Background decoration — teal glow */}
+      {/* Background decoration */}
       <div
         style={{
           position: "fixed",
-          top: "-120px",
-          left: "-120px",
-          width: "480px",
-          height: "480px",
-          background: "radial-gradient(circle, rgba(61,90,90,0.1) 0%, transparent 65%)",
+          top: "-100px",
+          left: "-100px",
+          width: "400px",
+          height: "400px",
+          background: "radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%)",
           pointerEvents: "none",
         }}
       />
       <div
         style={{
           position: "fixed",
-          bottom: "-100px",
-          right: "-100px",
-          width: "400px",
-          height: "400px",
-          background: "radial-gradient(circle, rgba(129,140,248,0.08) 0%, transparent 65%)",
+          bottom: "-80px",
+          right: "-80px",
+          width: "350px",
+          height: "350px",
+          background: "radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)",
           pointerEvents: "none",
         }}
       />
@@ -174,39 +82,43 @@ export default function AuthPage() {
       <div
         className="animate-fadeIn"
         style={{
-          background: "var(--bg-card)",
+          background: "#fff",
           borderRadius: "20px",
-          border: "1px solid var(--border-teal)",
-          boxShadow: "var(--shadow-xl), var(--shadow-teal)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.08), 0 8px 25px rgba(0,0,0,0.04)",
           width: "100%",
           maxWidth: "400px",
           overflow: "hidden",
         }}
       >
-        {/* Header — dark with teal accent */}
+        {/* Header gradient */}
         <div
           style={{
-            background: "linear-gradient(135deg, rgba(61,90,90,0.15) 0%, rgba(0,0,0,0.08) 100%)",
-            borderBottom: "1px solid var(--border-teal)",
+            background: "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)",
             padding: "32px 32px 28px",
             textAlign: "center",
           }}
         >
-          <img
-            src="/cortisoul-logo.png"
-            alt="CortiSoul Logo"
+          <div
             style={{
-              width: "56px",
-              height: "56px",
-              objectFit: "contain",
+              width: "52px",
+              height: "52px",
+              background: "rgba(255,255,255,0.2)",
+              borderRadius: "16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               margin: "0 auto 14px",
-              filter: "drop-shadow(0 8px 16px rgba(61, 90, 90, 0.35))",
+              backdropFilter: "blur(8px)",
             }}
-          />
-          <h1 style={{ color: "var(--text-primary)", fontSize: "22px", fontWeight: 700, marginBottom: "6px" }}>
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          </div>
+          <h1 style={{ color: "#fff", fontSize: "22px", fontWeight: 700, marginBottom: "6px" }}>
             {mode === "login" ? "Selamat Datang!" : "Buat Akun"}
           </h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "13.5px" }}>
+          <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13.5px" }}>
             {mode === "login"
               ? "Masuk untuk melanjutkan jurnal mentalmu"
               : "Daftarkan diri untuk mulai perjalananmu"}
@@ -214,16 +126,15 @@ export default function AuthPage() {
         </div>
 
         {/* Form */}
-        <div style={{ padding: "24px 20px 28px" }}>
+        <div style={{ padding: "28px 32px 32px" }}>
           {/* Tab switcher */}
           <div
             style={{
               display: "flex",
-              background: "rgba(255,255,255,0.04)",
+              background: "var(--bg-primary)",
               borderRadius: "10px",
               padding: "4px",
               marginBottom: "24px",
-              border: "1px solid var(--border-light)",
             }}
           >
             {(["login", "register"] as const).map((m) => (
@@ -235,12 +146,12 @@ export default function AuthPage() {
                   padding: "8px",
                   borderRadius: "8px",
                   border: "none",
-                  background: mode === m ? "rgba(61,90,90,0.15)" : "transparent",
-                  color: mode === m ? "var(--teal-badge)" : "var(--text-secondary)",
+                  background: mode === m ? "#fff" : "transparent",
+                  color: mode === m ? "var(--text-primary)" : "var(--text-secondary)",
                   fontWeight: mode === m ? 600 : 400,
                   fontSize: "13.5px",
                   cursor: "pointer",
-                  boxShadow: mode === m ? "0 1px 4px rgba(0,0,0,0.2)" : "none",
+                  boxShadow: mode === m ? "var(--shadow-sm)" : "none",
                 }}
               >
                 {m === "login" ? "Masuk" : "Daftar"}
@@ -316,11 +227,11 @@ export default function AuthPage() {
               <div
                 className="animate-fadeIn"
                 style={{
-                  background: "rgba(220, 38, 38, 0.1)",
-                  border: "1px solid rgba(220, 38, 38, 0.25)",
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
                   borderRadius: "8px",
                   padding: "10px 12px",
-                  color: "#f87171",
+                  color: "#dc2626",
                   fontSize: "13px",
                   display: "flex",
                   alignItems: "center",
@@ -343,8 +254,8 @@ export default function AuthPage() {
                 marginTop: "4px",
                 padding: "12px",
                 background: isLoading
-                  ? "rgba(61, 90, 90, 0.4)"
-                  : "linear-gradient(135deg, #3d5a5a 0%, #2b3f3f 100%)",
+                  ? "#94a3b8"
+                  : "linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%)",
                 color: "#fff",
                 border: "none",
                 borderRadius: "10px",
@@ -355,7 +266,6 @@ export default function AuthPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
-                boxShadow: isLoading ? "none" : "0 4px 15px rgba(61, 90, 90, 0.3)",
               }}
             >
               {isLoading && (
@@ -374,7 +284,7 @@ export default function AuthPage() {
               style={{
                 background: "none",
                 border: "none",
-                color: "var(--accent-teal)",
+                color: "var(--accent-blue)",
                 fontWeight: 600,
                 cursor: "pointer",
                 fontSize: "13px",

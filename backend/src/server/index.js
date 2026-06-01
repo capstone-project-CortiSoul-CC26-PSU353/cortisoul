@@ -2,17 +2,19 @@ import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import routes from '../routes/index.js';
 import ErrorHandler from '../middlewares/error.js';
 import startCronJob from '../services/notifications/cron/notification-cron.js';
 import requestLogger from '../middlewares/request-logger.js';
-import helmet from 'helmet';
+import { globalLimiter } from '../middlewares/rate-limit.js';
 
 const app = express();
 
 // security
+app.use(globalLimiter);
 app.use(helmet());
-app.use(cors({ origin: true }));
+app.use(cors({ origin: process.env.CORS_ORIGIN }));
 app.use(express.json());
 
 // logging

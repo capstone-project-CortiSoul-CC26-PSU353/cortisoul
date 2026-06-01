@@ -1,12 +1,6 @@
 /* eslint-disable camelcase */
 
 export const up = (pgm) => {
-  pgm.addColumn('journals', {
-    stress_category: {
-      type: 'TEXT',
-    },
-  });
-
   pgm.createTable('reflections', {
     id: {
       type: 'VARCHAR(30)',
@@ -36,5 +30,4 @@ export const up = (pgm) => {
 
 export const down = (pgm) => {
   pgm.dropTable('reflections');
-  pgm.dropColumn('journals', 'stress_category');
 };

@@ -36,6 +36,10 @@ export const up = (pgm) => {
       references: 'users',
       onDelete: 'cascade',
     },
+    stress_category: {
+      type: 'TEXT',
+      notNull: false,
+    },
   });
 };
 

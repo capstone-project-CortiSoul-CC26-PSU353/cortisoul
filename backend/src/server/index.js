@@ -11,11 +11,14 @@ import { globalLimiter } from '../middlewares/rate-limit.js';
 
 const app = express();
 
+// network
+app.set('trust proxy', 1);
+
 // security
+app.use(express.json());
 app.use(globalLimiter);
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN }));
-app.use(express.json());
 
 // logging
 app.use(requestLogger);

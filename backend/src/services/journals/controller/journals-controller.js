@@ -22,8 +22,9 @@ export const createJournal = async (req, res, next) => {
     title,
     content,
     stressScore: stressScoreValue,
-    emotion: prediction?.prediksi_label ?? null,
+    emotion: prediction.prediksi_label,
     owner,
+    stressCategory: prediction.kategori_stres,
   });
   if (!journal) {
     return next(new InvariantError('Jurnal gagal ditambahkan'));

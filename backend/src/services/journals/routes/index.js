@@ -11,6 +11,10 @@ import {
 import { validate } from '../../../middlewares/validate.js';
 import { journalPayloadSchema } from '../validator/schema.js';
 import authenticateToken from '../../../middlewares/auth.js';
+import {
+  generateReflection,
+  getReflection,
+} from '../../reflections/controller/reflection-controller.js';
 
 const routes = express.Router();
 
@@ -31,5 +35,7 @@ routes.put(
   editJournalById
 );
 routes.delete('/:id', authenticateToken, deleteJournalById);
+routes.post('/:id/reflections', authenticateToken, generateReflection);
+routes.get('/:id/reflections', authenticateToken, getReflection);
 
 export default routes;

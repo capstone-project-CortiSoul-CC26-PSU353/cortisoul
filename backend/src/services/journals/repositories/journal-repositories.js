@@ -15,14 +15,15 @@ class JournalRepositories {
     owner,
     stressScore = null,
     emotion = null,
+    stressCategory = null,
   }) {
     const id = nanoid(16);
     const createdAt = new Date().toISOString();
     const updatedAt = createdAt;
 
     const query = {
-      text: `INSERT INTO journals(id, title, content, created_at, updated_at, stress_score, emotion, owner)
-              VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+      text: `INSERT INTO journals(id, title, content, created_at, updated_at, stress_score, emotion, owner, stress_category)
+              VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
               RETURNING id`,
       values: [
         id,
@@ -33,6 +34,7 @@ class JournalRepositories {
         stressScore,
         emotion,
         owner,
+        stressCategory,
       ],
     };
 

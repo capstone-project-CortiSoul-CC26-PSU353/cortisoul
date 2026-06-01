@@ -32,3 +32,9 @@ export const notificationsLimiter = createRateLimiter({
   message:
     'Terlalu banyak permintaan notifikasi. Coba lagi setelah beberapa saat.',
 });
+
+export const globalLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  message: 'Terlalu banyak permintaan dari IP ini. Silakan coba lagi nanti.',
+});

@@ -12,7 +12,7 @@ const app = express();
 
 // security
 app.use(helmet());
-app.use(cors({ origin: true }));
+app.use(cors({ origin: process.env.CORS_ORIGIN }));
 app.use(express.json());
 
 // logging
